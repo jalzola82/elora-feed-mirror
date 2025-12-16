@@ -32,7 +32,7 @@ jobs:
 
       - name: Fetch RSS into site root
         run: |
-          curl -sL "https://jalzola.substack.com/feed" \
+          curl -sL "https://testelorainfo.blogspot.com/feeds/posts/default?alt=rss" \
             -A "FeedMirror/1.0 (+https://github.com/${{ github.repository }})" \
             -o feed.xml
 
