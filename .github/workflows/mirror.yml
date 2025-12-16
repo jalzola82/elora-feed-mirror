@@ -2,32 +2,53 @@ name: Mirror external RSS to GitHub
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # cada 30 min (UTC)
-  workflow_dispatch:         # botón manual "Run workflow"
+    - cron: "*/30 * * * *"        # cada 30 min (UTC)
+  workflow_dispatch:              # botón manual
   push:
     paths:
       - ".github/workflows/mirror.yml"
 
 permissions:
-  contents: write  # necesario para poder hacer commits
+  contents: write                 # necesario para push desde GITHUB_TOKEN
+
+concurrency:
+  group: mirror-feed              # evita carreras si se solapan ejecuciones
+  cancel-in-progress: false
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # <- importante para poder rebasear
+          persist-credentials: true
 
-      - name: Fetch RSS
+      - name: Config git identity
+        run: |
+          git config user.name "feed-bot"
+          git config user.email "feed-bot@users.noreply.github.com"
+          git config pull.rebase true
+
+      - name: Update local main from origin
+        run: |
+          # Asegura que estamos en main; cambia si tu rama por defecto es 'master'
+          git checkout main
+          git pull --rebase --autostash origin main
+
+      - name: Fetch RSS into public/feed.xml
         run: |
           mkdir -p public
           curl -sL "https://jalzola.substack.com/feed" \
             -A "FeedMirror/1.0 (+https://github.com/${{ github.repository }})" \
             -o public/feed.xml
 
-      - name: Commit & Push if changed
+      - name: Commit if changed
         run: |
-          git config user.name "feed-bot"
-          git config user.email "feed-bot@users.noreply.github.com"
           git add public/feed.xml
           git commit -m "Update feed.xml" || echo "No changes"
-          git push
+
+      - name: Push
+        run: |
+          git push origin HEAD:main
